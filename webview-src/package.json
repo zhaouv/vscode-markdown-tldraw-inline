@@ -1,8 +1,8 @@
 {
-  "name": "my-vite-project",
+  "name": "vscode-markdown-tldraw-inline-webview",
   "version": "1.0.0",
   "scripts": {
-    "build": "vite build && node local_replace.js"
+    "build": "rm -rf ../board && vite build && node local_replace.js"
   },
   "dependencies": {
     "@tldraw/assets": "^3.5.1",

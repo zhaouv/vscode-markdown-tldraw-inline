@@ -2,7 +2,7 @@ const vscode = require("vscode");
 const path = require("path");
 const fs = require("fs");
 
-const foldStart = '<!-- #region drawnote -->'
+const foldStart = '<!-- #region drawinline -->'
 const foldEnd = '<!-- #endregion -->'
 
 function getRandomString() {
@@ -17,19 +17,19 @@ const getNonce = getRandomString;
 const generateSVGName = getRandomString;
 
 function foldingMod() {
-  return vscode.workspace.getConfiguration('markdown-draw')['auto-folding']
+  return vscode.workspace.getConfiguration('draw-inline')['auto-folding']
 }
 
 function loadWebviewFiles(root) {
-  let main = fs.readFileSync(path.join(root, 'webview.html'), { encoding: 'utf8' })
-  main = main.replace(/<[^\n]*"\.\/board\/[^\n]*>/g, s => {
-    let m = /"\.\/board\/(.*?\.)(.*?)"/.exec(s)
-    let content = fs.readFileSync(path.join(root, 'board', m[1] + m[2]), { encoding: 'utf8' })
+  let main = fs.readFileSync(path.join(root, 'board', 'index.html'), { encoding: 'utf8' })
+  main = main.replace(/<[^\n]*"\.\/assets\/[^\n]*>/g, s => {
+    let m = /"\.\/assets\/(.*?\.)(.*?)"/.exec(s)
+    let content = fs.readFileSync(path.join(root, 'board', 'assets', m[1] + m[2]), { encoding: 'utf8' })
     switch (m[2]) {
       case 'css':
-        return '<style>' + content + '</style>'
+        return '<style>\n' + content + '\n</style>'
       case 'js':
-        return '<script nonce="ToBeReplacedByRandomToken">' + content + '</script>'
+        return '<script type="module" crossorigin nonce="ToBeReplacedByRandomToken">\n' + content + '\n</script>'
       default:
         return s
     }
@@ -57,16 +57,17 @@ function activate(context) {
   function createNewPanel() {
     // Create and show panel
     currentPanel = vscode.window.createWebviewPanel(
-      'drawNote',
-      'Draw Note',
-      vscode.ViewColumn.Three,
+      'drawInline',
+      'Draw Inline',
+      vscode.ViewColumn.Two,
       {
         // Enable scripts in the webview
-        enableScripts: true
+        enableScripts: true,
+        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'board'))]
       }
     );
 
-    currentPanel.webview.html = getWebviewContent();
+    currentPanel.webview.html = getWebviewContent(currentPanel.webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'board/cdn'))));
     // Handle messages from the webview
     currentPanel.webview.onDidReceiveMessage(
       message => {
@@ -172,7 +173,7 @@ function activate(context) {
 
   // write text to filename
   function writeFile(text, filename) {
-    let settings = vscode.workspace.getConfiguration('markdown-draw');
+    let settings = vscode.workspace.getConfiguration('draw-inline');
     let dir = path.join(vscode.workspace.rootPath, settings.directory);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir);
@@ -186,7 +187,7 @@ function activate(context) {
   }
 
   function setEditorText(text, control, file) {
-    let settings = vscode.workspace.getConfiguration('markdown-draw');
+    let settings = vscode.workspace.getConfiguration('draw-inline');
     if (file) {
       let filename = `${generateSVGName()}.svg`
       let alt = "";
@@ -237,30 +238,23 @@ function activate(context) {
   }
 
   function pushCustom() {
-    let customizedButtons = vscode.workspace.getConfiguration('markdown-draw')['customized-buttons'];
-    currentPanel.webview.postMessage({ command: 'custom', content: { operate: customizedButtons } });
-
-    let webviewKeybindings = vscode.workspace.getConfiguration('markdown-draw')['webview-keybindings'];
-    currentPanel.webview.postMessage({ command: 'custom', content: { operate: [{
-      "type": "script",
-      "function": "drawAPI.unstable.updatekeybindings("+JSON.stringify(webviewKeybindings)+")",
-      "version": "0.1.2"
-    }] } });
+    currentPanel.webview.postMessage({ command: 'custom', content: { operate: [] } });
   }
 
+
   context.subscriptions.push(
-    vscode.commands.registerCommand('markdownDraw.editCurrentLineAsSVG', () => {
+    vscode.commands.registerCommand('drawInline.editCurrentLineAsSVG', () => {
       if (currentPanel) {
         showPanel()
         pushCurrentLine()
         if(foldingMod())vscode.commands.executeCommand('editor.foldAllMarkerRegions')
       } else {
-        vscode.commands.executeCommand('workbench.action.editorLayoutTwoRowsRight')
-          .then(() => {
+        // vscode.commands.executeCommand('workbench.action.editorLayoutTwoRowsRight')
+        //   .then(() => {
             createNewPanel()
             pushCurrentLine()
             if(foldingMod())vscode.commands.executeCommand('editor.foldAllMarkerRegions')
-          })
+          // })
       }
     })
   );
@@ -268,6 +262,6 @@ function activate(context) {
 }
 exports.activate = activate;
 
-function getWebviewContent() {
-  return webviewContent
+function getWebviewContent(cdnpath) {
+  return webviewContent.replace('./cdn',cdnpath)
 }
